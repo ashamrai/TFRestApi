@@ -32,8 +32,6 @@ namespace TFRestApiApp
         static void Main(string[] args)
         {
             ConnectWithDefaultCreds(TFUrl);
-
-            WorkItem w = WitClient.GetWorkItemAsync(1).Result;
         }
 
         static void InitClients(VssConnection Connection)
