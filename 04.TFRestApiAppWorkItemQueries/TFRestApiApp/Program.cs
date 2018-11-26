@@ -39,11 +39,11 @@ namespace TFRestApiApp
             string queryRootPath = "Shared Queries";
             string sampleQueryName = "My Query";
             //get active user stories
-            string queryWiqlList = @"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '"+ teamProject + 
-                @"' and [System.WorkItemType] = 'User Story' and [System.State] <> 'Removed' and [System.State] <> 'Closed'";
+            string queryWiqlList = @"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project" + 
+                " and [System.WorkItemType] = 'User Story' and [System.State] <> 'Removed' and [System.State] <> 'Closed'";
             //get WBS
-            string queryWiqlTree = "SELECT [System.Id] FROM WorkItemLinks WHERE ([Source].[System.TeamProject] = '" + teamProject + 
-                "'  AND  [Source].[System.WorkItemType] IN ('Feature', 'User Story')  AND  [Source].[System.State] IN ('New', 'Active', 'Resolved'))" +
+            string queryWiqlTree = "SELECT [System.Id] FROM WorkItemLinks WHERE ([Source].[System.TeamProject] = @project" + 
+                "  AND  [Source].[System.WorkItemType] IN ('Feature', 'User Story')  AND  [Source].[System.State] IN ('New', 'Active', 'Resolved'))" +
                 " And ([System.Links.LinkType] = 'System.LinkTypes.Hierarchy-Forward') And ([Target].[System.WorkItemType] IN ('User Story', 'Task')" +
                 "  AND  [Target].[System.State] IN ('New', 'Active', 'Resolved')) ORDER BY [Microsoft.VSTS.Common.StackRank], [System.Id] mode(Recursive)";
 
@@ -51,10 +51,10 @@ namespace TFRestApiApp
             GetAllWorkItemQueries(teamProject);
 
             Console.WriteLine("\nGet Flat List");
-            GetQueryResult(queryWiqlList); 
+            GetQueryResult(queryWiqlList, teamProject); 
 
             Console.WriteLine("\nGet Result with Links");
-            GetQueryResult(queryWiqlTree); 
+            GetQueryResult(queryWiqlTree, teamProject); 
 
             Console.WriteLine("\nRun Query from TFS");
             RunStoredQuery(teamProject, queryPath);  
@@ -101,9 +101,9 @@ namespace TFRestApiApp
         /// Run query and show result
         /// </summary>
         /// <param name="wiqlStr">Wiql String</param>
-        static void GetQueryResult(string wiqlStr)
+        static void GetQueryResult(string wiqlStr, string teamProject)
         {
-            WorkItemQueryResult result = RunQueryByWiql(wiqlStr);
+            WorkItemQueryResult result = RunQueryByWiql(wiqlStr, teamProject);
 
             if (result != null)
             {
@@ -139,12 +139,13 @@ namespace TFRestApiApp
         /// </summary>
         /// <param name="wiqlStr">Wiql String</param>
         /// <returns></returns>
-        static WorkItemQueryResult RunQueryByWiql(string wiqlStr)
+        static WorkItemQueryResult RunQueryByWiql(string wiqlStr, string teamProject)
         {
             Wiql wiql = new Wiql();
             wiql.Query = wiqlStr;
 
-            return WitClient.QueryByWiqlAsync(wiql).Result;
+            if (teamProject == "") return WitClient.QueryByWiqlAsync(wiql).Result;
+            else return WitClient.QueryByWiqlAsync(wiql, teamProject).Result;
         }
 
         /// <summary>
@@ -158,9 +159,7 @@ namespace TFRestApiApp
 
             string wiqlStr = query.Wiql;
 
-            if (wiqlStr.Contains("@project")) wiqlStr = wiqlStr.Replace("@project", "'" + project + "'");
-
-            GetQueryResult(wiqlStr);
+            GetQueryResult(wiqlStr, project);
         }
 
         /// <summary>
@@ -172,11 +171,11 @@ namespace TFRestApiApp
         static void OperateWithQuery(string project, string queryRootPath, string queryName)
         {          
             //Get new and active tasks
-            string customWiql = @"SELECT [System.Id], [System.Title], [System.State] FROM WorkItems WHERE [System.TeamProject] = '" + project +
-                @"' and [System.WorkItemType] = 'Task' and [System.State] <> 'Closed'";
+            string customWiql = @"SELECT [System.Id], [System.Title], [System.State] FROM WorkItems WHERE [System.TeamProject] = @project" + 
+                @" and [System.WorkItemType] = 'Task' and [System.State] <> 'Closed'";
             //Get new tasks only
-            string updatedWiql = @"SELECT [System.Id], [System.Title] FROM WorkItems WHERE [System.TeamProject] = '" + project +
-                @"' and [System.WorkItemType] = 'Task' and [System.State] == 'New'";
+            string updatedWiql = @"SELECT [System.Id], [System.Title] FROM WorkItems WHERE [System.TeamProject] = @project" + 
+                @" and [System.WorkItemType] = 'Task' and [System.State] == 'New'";
 
             Console.WriteLine("Create New Query");
             AddQuery(project, queryRootPath, queryName, customWiql);
