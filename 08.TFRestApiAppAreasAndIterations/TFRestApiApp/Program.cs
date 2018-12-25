@@ -25,8 +25,8 @@ namespace TFRestApiApp
         //static readonly string TFUrl = "https://dev.azure.com/<your_org>/"; // for devops azure 
         static readonly string UserAccount = "";
         static readonly string UserPassword = "";
-        static readonly string UserPAT = "<your_pat>";
-        
+        static readonly string UserPAT = ""; //https://docs.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=vsts
+
 
         static WorkItemTrackingHttpClient WitClient;
         static BuildHttpClient BuildClient;
@@ -42,6 +42,7 @@ namespace TFRestApiApp
                 string teamProject = ""; // team project for areas and iterations
 
                 ConnectWithDefaultCreds(TFUrl);            
+                //ConnectWithPAT(TFUrl, UserPAT);
 
                 Console.WriteLine("Manage Areas\n");
                 ManageAreas(teamProject);
@@ -135,7 +136,6 @@ namespace TFRestApiApp
         {
             WorkItemClassificationNode newIteration = new WorkItemClassificationNode();
             newIteration.Name = IterationName;
-            newIteration.StructureType = TreeNodeStructureType.Iteration;
 
             if (StartDate != null && FinishDate != null)
             {
@@ -144,9 +144,7 @@ namespace TFRestApiApp
                 newIteration.Attributes.Add("finishDate", FinishDate);
             }
 
-            WorkItemClassificationNode result = WitClient.CreateOrUpdateClassificationNodeAsync(newIteration, TeamProjectName, TreeStructureGroup.Iterations, ParentIterationPath).Result;
-
-            return result;
+            return WitClient.CreateOrUpdateClassificationNodeAsync(newIteration, TeamProjectName, TreeStructureGroup.Iterations, ParentIterationPath).Result;
         }
 
         /// <summary>
@@ -160,11 +158,8 @@ namespace TFRestApiApp
         {
             WorkItemClassificationNode newArea = new WorkItemClassificationNode();
             newArea.Name = AreaName;
-            newArea.StructureType = TreeNodeStructureType.Area;
 
-            WorkItemClassificationNode result = WitClient.CreateOrUpdateClassificationNodeAsync(newArea, TeamProjectName, TreeStructureGroup.Areas, ParentAreaPath).Result;
-
-            return result;
+            return WitClient.CreateOrUpdateClassificationNodeAsync(newArea, TeamProjectName, TreeStructureGroup.Areas, ParentAreaPath).Result;
         }
 
         /// <summary>
@@ -222,6 +217,7 @@ namespace TFRestApiApp
         /// <returns></returns>
         private static string GetParentNodePath(string NodePath, string NodeName)
         {
+            if (!NodePath.Contains("\\")) return null;
             return NodePath.Remove(NodePath.Length - NodeName.Length - 1, NodeName.Length + 1);
         }
 
