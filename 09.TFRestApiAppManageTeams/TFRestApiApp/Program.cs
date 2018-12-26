@@ -41,8 +41,8 @@ namespace TFRestApiApp
             try
             {
                 string teamProject = ""; // team project for tests
-                string team = ""; // team to get info
-                string tempTeam = ""; // temporary team to create and remove
+                string team = teamProject + " Team"; // team to get info (default project team)
+                string tempTeam = "Custom Team"; // temporary team to create and remove
 
                 ConnectWithDefaultCreds(TFUrl);
                 //ConnectWithPAT(TFUrl, UserPAT);
@@ -50,7 +50,8 @@ namespace TFRestApiApp
                 GetTeams(teamProject);
                 GetTeamInfo(teamProject, team);
                 CreateNewTeam(teamProject, tempTeam);
-                DeleteTeam(teamProject, tempTeam);
+                UpdateTeam(teamProject, tempTeam);
+                DeleteTeam(teamProject, tempTeam + " updated");
             }
             catch(Exception ex)
             {
@@ -118,6 +119,25 @@ namespace TFRestApiApp
             Console.WriteLine("The new team '{0}' has been created in the team project '{1}'", newTeam.Name, newTeam.ProjectName);
         }
 
+        // <summary>
+        /// Update an existing team
+        /// </summary>
+        /// <param name="TeamProjectName"></param>
+        /// <param name="TeamName"></param>
+        static void UpdateTeam(string TeamProjectName, string TeamName)
+        {
+            WebApiTeam team = TeamClient.GetTeamAsync(TeamProjectName, TeamName).Result;
+
+            WebApiTeam updatedTeam = new WebApiTeam {
+                Name = team.Name + " updated",
+                Description = team.Description.Replace("Created", "Updated")
+            };
+
+            updatedTeam = TeamClient.UpdateTeamAsync(updatedTeam, team.ProjectName, team.Name).Result;
+
+            Console.WriteLine("The team '{0}' has been updated in the team project '{1}'", updatedTeam.Name, updatedTeam.ProjectName);
+        }
+
         /// <summary>
         /// Remove an existing team
         /// </summary>
@@ -127,7 +147,7 @@ namespace TFRestApiApp
         {
             Console.WriteLine("Delete the team '{0}' in the team project '{1}'", TeamName, TeamProjectName);
             TeamClient.DeleteTeamAsync(TeamProjectName, TeamName).SyncResult();
-            Console.WriteLine("Comleted");
+            Console.WriteLine("Completed");
         }
 
         #region create new connections
