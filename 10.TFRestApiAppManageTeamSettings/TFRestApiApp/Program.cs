@@ -48,12 +48,17 @@ namespace TFRestApiApp
                 ConnectWithDefaultCreds(TFUrl);
                 //ConnectWithPAT(TFUrl, UserPAT);
 
+                //use this project before manage areas and iterations:
+                //https://github.com/ashamrai/TFRestApi/tree/master/08.TFRestApiAppAreasAndIterations
+
                 AddTeamIterations(teamProject, team);
                 DeleteTeamIteration(teamProject, team);
                 AddTeamAreas(teamProject, team);
-                GetTeamSettings(teamProject, team);
+                
                 GetTeamAreas(teamProject, team);
                 GetTeamIterations(teamProject, team);
+                GetTeamSettings(teamProject, team);
+                UpdateTeamSettings(teamProject, team);
             }
             catch(Exception ex)
             {
@@ -61,7 +66,7 @@ namespace TFRestApiApp
                 if (ex.InnerException != null) Console.WriteLine("Detailed Info: " + ex.InnerException.Message);
                 Console.WriteLine("Stack:\n" + ex.StackTrace);
             }
-        }
+        }        
 
         /// <summary>
         /// Add existing iteraions to a team
@@ -140,6 +145,8 @@ namespace TFRestApiApp
         /// <param name="TeamName"></param>
         static void GetTeamSettings(string TeamProjectName, string TeamName)
         {
+            Console.WriteLine("==========Get Team Settings");
+
             TeamContext teamContext = new TeamContext(TeamProjectName, TeamName);
 
             TeamSetting teamSetting = WorkClient.GetTeamSettingsAsync(teamContext).Result;
@@ -152,7 +159,47 @@ namespace TFRestApiApp
             foreach(string bkey in teamSetting.BacklogVisibilities.Keys)
                 if (teamSetting.BacklogVisibilities[bkey]) Console.WriteLine("\t" + bkey);
             Console.WriteLine("Working days         :");
-            foreach (var wday in teamSetting.WorkingDays) Console.WriteLine("\t" + wday.ToString());             
+            foreach (var wday in teamSetting.WorkingDays) Console.WriteLine("\t" + wday.ToString());     
+            
+            switch (teamSetting.BugsBehavior)
+            {
+                case BugsBehavior.AsRequirements:
+                    Console.WriteLine("Bugs Behavior: Bugs in a requirements backlog.");
+                    break;
+                case BugsBehavior.AsTasks:
+                    Console.WriteLine("Bugs Behavior: Bugs in a sprint backlog as tasks.");
+                    break;
+                case BugsBehavior.Off:
+                    Console.WriteLine("Bugs Behavior: Find bugs through queries.");
+                    break;
+            }
+        }
+
+        private static void UpdateTeamSettings(string TeamProjectName, string TeamName)
+        {
+            Console.WriteLine("==========Update Settings");
+
+            TeamContext teamContext = new TeamContext(TeamProjectName, TeamName);
+
+            TeamSetting teamSetting = WorkClient.GetTeamSettingsAsync(teamContext).Result;
+
+            TeamSettingsPatch teamSettingsPatch = new TeamSettingsPatch();
+
+            //update backlogs
+
+            teamSettingsPatch.BacklogVisibilities = teamSetting.BacklogVisibilities;
+
+            if (teamSettingsPatch.BacklogVisibilities.ContainsKey(BacklogCategories.Epic) && teamSettingsPatch.BacklogVisibilities[BacklogCategories.Epic])
+                teamSettingsPatch.BacklogVisibilities[BacklogCategories.Epic] = false;
+            if (teamSettingsPatch.BacklogVisibilities.ContainsKey(BacklogCategories.Feature) && teamSettingsPatch.BacklogVisibilities[BacklogCategories.Feature])
+                teamSettingsPatch.BacklogVisibilities[BacklogCategories.Feature] = false;
+
+            //more work
+            teamSettingsPatch.WorkingDays = new DayOfWeek[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday};
+
+            teamSetting = WorkClient.UpdateTeamSettingsAsync(teamSettingsPatch, teamContext).Result;
+            
+            GetTeamSettings(TeamProjectName, TeamName);
         }
 
         /// <summary>
@@ -162,6 +209,8 @@ namespace TFRestApiApp
         /// <param name="TeamName"></param>
         static void GetTeamAreas(string TeamProjectName, string TeamName)
         {
+            Console.WriteLine("==========Get Team Areas");
+
             TeamContext teamContext = new TeamContext(TeamProjectName, TeamName);
 
             TeamFieldValues teamAreas = WorkClient.GetTeamFieldValuesAsync(teamContext).Result; //Get All Areas
@@ -181,6 +230,8 @@ namespace TFRestApiApp
         /// <param name="TeamName"></param>
         static void GetTeamIterations(string TeamProjectName, string TeamName)
         {
+            Console.WriteLine("==========Get Team Iterations");
+
             TeamContext teamContext = new TeamContext(TeamProjectName, TeamName);
 
             Console.WriteLine("Iterations of the team " + TeamName);
@@ -195,6 +246,13 @@ namespace TFRestApiApp
             Console.WriteLine("Team Iterations: ");
             foreach (TeamSettingsIteration teamIteration in teamIterations)
                 Console.WriteLine("{0} : {1} : {2}-{3}", teamIteration.Attributes.TimeFrame, teamIteration.Name, teamIteration.Attributes.StartDate, teamIteration.Attributes.FinishDate);
+        }
+
+        public class BacklogCategories
+        {
+            public const string Epic = "Microsoft.EpicCategory";
+            public const string Feature = "Microsoft.FeatureCategory";
+            public const string Requirement = "Microsoft.RequirementCategory";
         }
         
 
