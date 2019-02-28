@@ -84,7 +84,7 @@ namespace TFRestApiApp
                 var area = WitClient.GetClassificationNodeAsync(TeamProjectName, TreeStructureGroup.Areas, AreaPath).Result;
                 areaRef = new Microsoft.TeamFoundation.TestManagement.WebApi.ShallowReference() {
                     Id = area.Identifier.ToString(),
-                    Name = TeamProjectName + "\\" + area.Name,
+                    Name = TeamProjectName + "\\" + AreaPath,
                     Url = area.Url
                 };
             }
