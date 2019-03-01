@@ -91,10 +91,10 @@ namespace TFRestApiApp
 
             TestSuite testSuite = TestManagementClient.GetTestSuiteByIdAsync(TeamProjectName, TestPlanId, testSuiteId, 1).Result;
 
-            if (testSuite.SuiteType == "StaticTestSuite")
+            if (testSuite.SuiteType == "StaticTestSuite" || testSuite.SuiteType == "RequirementTestSuite")
                 TestManagementClient.AddTestCasesToSuiteAsync(TeamProjectName, TestPlanId, testSuiteId, String.Join(",", TestCasesIds)).Wait();
             else
-                Console.WriteLine("The Test Suite '" + StaticSuitePath + "' is not static");
+                Console.WriteLine("The Test Suite '" + StaticSuitePath + "' is not static or requirement");
         }
 
         /// <summary>
