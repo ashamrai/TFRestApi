@@ -86,7 +86,7 @@ namespace TFRestApiApp
 
             testResults = TestManagementClient.AddTestResultsToTestRunAsync(testResults.ToArray(), TeamProjectName, testRun.Id).Result;
 
-            var definedTestResults = TestManagementClient.GetTestResultsAsync(TeamProjectName, testRun.Id).Result;
+            var definedTestResults = TestManagementClient.GetTestResultsAsync(TeamProjectName, testRun.Id).Result; // Get test result
             
             TestManagementClient.CreateTestResultAttachmentAsync(GetAttachmentModel(@"img\iconfinder_Insect-robot_131435.png"), TeamProjectName, testRun.Id, definedTestResults.ElementAt(0).Id).Wait();
             
@@ -99,7 +99,6 @@ namespace TFRestApiApp
 
             testRun = TestManagementClient.UpdateTestRunAsync(runUpdateModel, TeamProjectName, testRun.Id).Result;
 
-            TestAttachmentRequestModel testAttachmentRequestModelRun = new TestAttachmentRequestModel(fileName: @"img\Screen_Shot_2018-01-16.jpg");
             TestManagementClient.CreateTestRunAttachmentAsync(GetAttachmentModel(@"img\Screen_Shot_2018-01-16.jpg"), TeamProjectName, testRun.Id).Wait();
 
             PrintBasicRunInfo(testRun);
