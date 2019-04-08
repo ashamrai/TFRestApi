@@ -65,7 +65,7 @@ namespace TFRestApiApp
             string NewProjectPath = null; // example: "New Folder/New project.sln";
 
             var bld = BuildClient.GetDefinitionAsync(TeamProjectName, SourceBuildId).Result;
-
+            
             var clonedBuild = bld;
 
             clonedBuild.Repository.Url = new Uri(String.Format(GitRepoFormat, TeamProjectName, GitRepoName));
@@ -96,8 +96,6 @@ namespace TFRestApiApp
             string GitRepoFormat = @"https://<org>@dev.azure.com/<org>/{0}/_git/{1}"; // link to clone a git repo
             string RepoBranch = "refs/heads/master"; // example for branch dev: refs/heads/dev
             string SlnPath = "New Folder/New project.sln";
-
-            var bld = BuildClient.GetDefinitionAsync(TeamProjectName, 28).Result;            
 
             BuildDefinition newBuild = new BuildDefinition();
             newBuild.Path = BuildPath;
