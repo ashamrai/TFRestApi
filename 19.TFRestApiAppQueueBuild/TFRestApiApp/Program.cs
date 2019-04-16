@@ -8,6 +8,7 @@ using Microsoft.VisualStudio.Services.Common;
 using Microsoft.VisualStudio.Services.WebApi;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -18,7 +19,7 @@ namespace TFRestApiApp
 {
     class Program
     {
-        static readonly string TFUrl = "https://dev.azure.com/<org>/";
+        static readonly string TFUrl = "https://dev.azure.com/<organization>/";
         static readonly string UserAccount = "";
         static readonly string UserPassword = "";
         static readonly string UserPAT = "<pat>"; //https://docs.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops
@@ -34,16 +35,20 @@ namespace TFRestApiApp
         {
             try
             {
-                string TeamProjectName = "<Team project Name>";
-                
+                string TeamProjectName = "<Team Project Name>";
+                int buildId = 28; // update to an existing build definition id
+                string artifactName = "drop"; //default artifact name
+
 
                 ConnectWithPAT(TFUrl, UserPAT);
 
-                var startedBuild = QueueBuild(TeamProjectName, 30); // update the second parameter to an existing build definition id
+                var startedBuild = QueueBuild(TeamProjectName, buildId); 
                 Console.WriteLine("Build has been started: " + startedBuild.BuildNumber);
-                WaitEndOfBuild(TeamProjectName, startedBuild.Id);
-                PrintTimeLine(TeamProjectName, startedBuild.Id);
-                
+                if (WaitEndOfBuild(TeamProjectName, startedBuild.Id))
+                {
+                    PrintTimeLine(TeamProjectName, startedBuild.Id);
+                    DownloadBuildResults(startedBuild, artifactName);
+                }
             }
             catch (Exception ex)
             {
@@ -51,6 +56,27 @@ namespace TFRestApiApp
                 if (ex.InnerException != null) Console.WriteLine("Detailed Info: " + ex.InnerException.Message);
                 Console.WriteLine("Stack:\n" + ex.StackTrace);
             }
+        }
+
+        /// <summary>
+        /// Download a build content
+        /// </summary>
+        /// <param name="StartedBuild"></param>
+        /// <param name="ArtifactName"></param>
+        private static void DownloadBuildResults(Build StartedBuild, string ArtifactName)
+        {
+            BuildArtifact drop = BuildClient.GetArtifactAsync(StartedBuild.Id, ArtifactName).Result; //get detiled info
+
+            Console.WriteLine("Build location: " + drop.Resource.DownloadUrl);
+
+            string dropFileName = String.Format("{0}_{1}.zip", StartedBuild.Definition.Name, StartedBuild.BuildNumber);
+
+            Stream zipStream = BuildClient.GetArtifactContentZipAsync(StartedBuild.Id, ArtifactName).Result; //get content
+
+            using (FileStream zipFile = new FileStream(dropFileName, FileMode.Create))
+                zipStream.CopyTo(zipFile);
+
+            Console.WriteLine("The file '{0}' has been downloaded.", dropFileName);
         }
 
         /// <summary>
@@ -71,7 +97,7 @@ namespace TFRestApiApp
         /// </summary>
         /// <param name="TeamProjectName"></param>
         /// <param name="BuildId"></param>
-        private static void WaitEndOfBuild(string TeamProjectName, int BuildId)
+        private static bool WaitEndOfBuild(string TeamProjectName, int BuildId)
         {            
             int countWait = 0;
             string lastStatus = "";
@@ -90,10 +116,10 @@ namespace TFRestApiApp
                 else
                     Console.Write(".");
 
-                if (buildRun.Status.Value == BuildStatus.Completed ||
-                    buildRun.Status.Value == BuildStatus.Cancelling) break;
+                if (buildRun.Status.Value == BuildStatus.Completed) break;
+                if (buildRun.Status.Value == BuildStatus.Cancelling) return false;
 
-                if (countWait > 200) { Console.WriteLine("\nI cann`t wait!"); break; }
+                if (countWait > 200) { Console.WriteLine("\nI cann`t wait!"); return false; }
 
                 Thread.Sleep(2000);
                 countWait++;
@@ -101,6 +127,8 @@ namespace TFRestApiApp
 
             Console.WriteLine();
             Console.WriteLine(buildRun.Status);
+
+            return true;
         }
 
         /// <summary>
