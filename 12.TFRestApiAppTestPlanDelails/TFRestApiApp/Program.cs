@@ -1,36 +1,32 @@
 ﻿using Microsoft.TeamFoundation.Build.WebApi;
 using Microsoft.TeamFoundation.Core.WebApi;
 using Microsoft.TeamFoundation.SourceControl.WebApi;
-using Microsoft.TeamFoundation.TestManagement.WebApi;
 using Microsoft.TeamFoundation.WorkItemTracking.WebApi;
-using Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models;
 using Microsoft.VisualStudio.Services.Common;
 using Microsoft.VisualStudio.Services.WebApi;
-using Microsoft.VisualStudio.Services.WebApi.Patch;
-using Microsoft.VisualStudio.Services.WebApi.Patch.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.VisualStudio.Services.TestManagement.TestPlanning.WebApi;
+using Newtonsoft.Json;
 
 namespace TFRestApiApp
 {
     class Program
     {
         //static readonly string TFUrl = "http://tfs-srv:8080/tfs/DefaultCollection/"; //for tfs
-        static readonly string TFUrl = "https://dev.azure.com/<your_org>/"; // for devops azure 
+        static readonly string TFUrl = "https://dev.azure.com/<org>/"; // for devops azure 
         static readonly string UserAccount = "";
         static readonly string UserPassword = "";
-        static readonly string UserPAT = "";
+        static readonly string UserPAT = "<pat>";
 
         static WorkItemTrackingHttpClient WitClient;
         static BuildHttpClient BuildClient;
         static ProjectHttpClient ProjectClient;
         static GitHttpClient GitClient;
         static TfvcHttpClient TfvsClient;
-        static TestManagementHttpClient TestManagementClient;
+        static TestPlanHttpClient TestPlanClient;
 
          static void Main(string[] args)
         {
@@ -38,7 +34,7 @@ namespace TFRestApiApp
             {
                 ConnectWithPAT(TFUrl, UserPAT);
 
-                string teamProjectName = "Team Project Name";
+                string teamProjectName = "<Team Project Name>";
                 int testPlanId = 0; // set the plan id
 
                 TestPlanDetails(teamProjectName, testPlanId);               
@@ -58,19 +54,87 @@ namespace TFRestApiApp
         /// <param name="TestPlanId"></param>
         static void TestPlanDetails(string TeamProjectName, int TestPlanId)
         {
-            TestPlan testPlan = TestManagementClient.GetPlanByIdAsync(TeamProjectName, TestPlanId).Result;
+            TestPlan testPlan = TestPlanClient.GetTestPlanByIdAsync(TeamProjectName, TestPlanId).Result;
 
             Console.WriteLine("================================================================");
             Console.WriteLine("Test Plan  : {0} : {1} : {2}", testPlan.Id, testPlan.State, testPlan.Name);
-            Console.WriteLine("Area Path  : {0} : Iteration Path : {1}", testPlan.Area.Name, testPlan.Iteration);
-            Console.WriteLine("Plan Dates : {0} - {1}", testPlan.StartDate.ToShortDateString(), testPlan.EndDate.ToShortDateString());
+            Console.WriteLine("Area Path  : {0} : Iteration Path : {1}", testPlan.AreaPath, testPlan.Iteration);
+            Console.WriteLine("Plan Dates : {0} - {1}", 
+                (testPlan.StartDate.HasValue) ? testPlan.StartDate.Value.ToShortDateString() : "none", 
+                (testPlan.EndDate.HasValue) ? testPlan.EndDate.Value.ToShortDateString() : "none");
 
-            int rootsuiteId = 0;            
+            //Get test suites by one request
+            List<TestSuite> suitesDetail = TestPlanClient.GetTestSuitesForPlanAsync(TeamProjectName, TestPlanId, asTreeView: true).Result;
 
-            if (int.TryParse(testPlan.RootSuite.Id, out rootsuiteId))
+            ExploreTestSuiteTree(TeamProjectName, TestPlanId, suitesDetail, "");
+
+            //Query each test suite
+            //TestSuiteDetails(TeamProjectName, testPlan.Id, testPlan.RootSuite.Id, "");
+
+        }
+
+        /// <summary>
+        /// View details of a test suite from a test suites list
+        /// </summary>
+        /// <param name="TeamProjectName"></param>
+        /// <param name="TestPlanId"></param>
+        /// <param name="SuitesSubTree"></param>
+        /// <param name="ParentPath"></param>
+        static void ExploreTestSuiteTree(string TeamProjectName, int TestPlanId, List<TestSuite> SuitesSubTree, string ParentPath)
+        {
+            foreach (TestSuite testSuite in SuitesSubTree)
             {
-                TestSuiteDetails(TeamProjectName, testPlan.Id, testPlan.RootSuite.Id);
+                PrintSuiteInfo(testSuite, ParentPath);
+
+                if (testSuite.HasChildren) ExploreTestSuiteTree(TeamProjectName, TestPlanId, testSuite.Children, ParentPath + "\\" + testSuite.Name);
+
+                ViewTestCases(TeamProjectName, TestPlanId, testSuite);
             }
+        }
+
+        /// <summary>
+        /// View a test cases list
+        /// </summary>
+        /// <param name="TeamProjectName"></param>
+        /// <param name="TestPlanId"></param>
+        /// <param name="testSuite"></param>
+        private static void ViewTestCases(string TeamProjectName, int TestPlanId, TestSuite testSuite)
+        {
+            List<TestCase> testCases = TestPlanClient.GetTestCaseListAsync(TeamProjectName, TestPlanId, testSuite.Id).Result;
+
+            if (testCases.Count > 0)
+            {                
+                foreach (TestCase testCase in testCases)
+                {
+                    Console.WriteLine("Test: {0} - {1}", testCase.workItem.Id, testCase.workItem.Name);
+
+                    var wiFields = GetWorkItemFields(testCase.workItem.WorkItemFields);
+
+                    if (wiFields.ContainsKey("System.State"))
+                        Console.WriteLine("Test Case State: {0}", wiFields["System.State"].ToString());
+
+                    foreach (var config in testCase.PointAssignments)
+                        Console.WriteLine("Run for: {0} : {1}", config.Tester.DisplayName, config.ConfigurationName);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Convert an object list of work item fields to a dictionary
+        /// </summary>
+        /// <param name="WorkItemFieldsList"></param>
+        /// <returns></returns>
+        private static Dictionary<string, object> GetWorkItemFields(List<object> WorkItemFieldsList)
+        {
+            Dictionary<string, object> wiFields = new Dictionary<string, object>();
+
+            foreach (object wiField in WorkItemFieldsList)
+            {
+                Dictionary<string, object> fld = JsonConvert.DeserializeObject<Dictionary<string, object>>(wiField.ToString());
+                wiFields.Add(fld.Keys.ElementAt(0), fld[fld.Keys.ElementAt(0)]);
+            }
+
+            return wiFields;
         }
 
         /// <summary>
@@ -79,51 +143,39 @@ namespace TFRestApiApp
         /// <param name="TeamProjectName"></param>
         /// <param name="PlanId"></param>
         /// <param name="TestSuiteId"></param>
-        static void TestSuiteDetails(string TeamProjectName, int PlanId, string TestSuiteId)
+        static void TestSuiteDetails(string TeamProjectName, int TestPlanId, int TestSuiteId, string ParentPath)
         {
-            int suiteId = 0;
+            // SuiteExpand.Children does not work in 16.150.0-preview
+            TestSuite testSuite = TestPlanClient.GetTestSuiteByIdAsync(TeamProjectName, TestPlanId, TestSuiteId, SuiteExpand.Children).Result;
 
-            if (!int.TryParse(TestSuiteId, out suiteId)) return;
+            PrintSuiteInfo(testSuite, ParentPath);            
 
-            TestSuite suiteDetail = TestManagementClient.GetTestSuiteByIdAsync(TeamProjectName, PlanId, suiteId, 1).Result;
+            if (testSuite.HasChildren)
+                foreach (var suitedef in testSuite.Children)
+                    TestSuiteDetails(TeamProjectName, TestPlanId, suitedef.Id, ParentPath + "\\" + testSuite.Name);
 
-            Console.WriteLine("================================================================");
-            Console.WriteLine("Test Suite : {0} : {1} : {2}", suiteDetail.Id, suiteDetail.State, suiteDetail.Name);
-
-            //Sute Types: StaticTestSuite, RequirementTestSuite, DynamicTestSuite            
-            Console.WriteLine("Suite Type : {0} : {1}", suiteDetail.SuiteType,
-                (suiteDetail.SuiteType == "StaticTestSuite") ? "" :
-                (suiteDetail.SuiteType == "DynamicTestSuite") ? "\nQuery: " + suiteDetail.QueryString : "Requirement ID " + suiteDetail.RequirementId.ToString());
-            if (suiteDetail.Parent == null) Console.WriteLine("This is a root suite");
-            Console.WriteLine("----------------------------------------------------------------");
-
-            if (suiteDetail.Suites != null && suiteDetail.Suites.Count > 0)
-                foreach (var suitedef in suiteDetail.Suites)
-                    TestSuiteDetails(TeamProjectName, PlanId, suitedef.Id);
-
-            if (suiteDetail.TestCaseCount > 0)
-            {
-                //get test cases info
-
-                List<SuiteTestCase> testCases = TestManagementClient.GetTestCasesAsync(TeamProjectName, PlanId, suiteId).Result;
-
-                foreach(SuiteTestCase testCase in testCases)
-                {
-                    int testId = 0;
-
-                    if (!int.TryParse(testCase.Workitem.Id, out testId)) continue;
-
-                    WorkItem wi = WitClient.GetWorkItemAsync(testId).Result;
-
-                    Console.WriteLine("Test: {0} - {1}", wi.Id, wi.Fields["System.Title"].ToString());
-                    foreach(var config in testCase.PointAssignments)
-                        Console.WriteLine("Run for: {0} : {1}", config.Tester.DisplayName, config.Configuration.Name);
-
-                }
-            }
+            ViewTestCases(TeamProjectName, TestPlanId, testSuite);
+            
         }
 
-       
+        /// <summary>
+        /// Print info of a test suite
+        /// </summary>
+        /// <param name="Suite"></param>
+        /// <param name="ParentPath"></param>
+        static void PrintSuiteInfo(TestSuite Suite, string ParentPath)
+        {
+            Console.WriteLine("================================================================");
+            Console.WriteLine("Test Suite : {0} : {1}", Suite.Id, Suite.Name);
+
+            Console.WriteLine("Suite Type : {0} : {1}", Suite.SuiteType,
+                (Suite.SuiteType == TestSuiteType.StaticTestSuite) ? "" :
+                (Suite.SuiteType == TestSuiteType.DynamicTestSuite) ? "\nQuery: " + Suite.QueryString : "Requirement ID " + Suite.RequirementId.ToString());
+            if (Suite.ParentSuite == null) Console.WriteLine("This is a root suite");
+            else Console.WriteLine("Parent Path: " + ParentPath);
+            Console.WriteLine("----------------------------------------------------------------");
+        }
+
 
         #region create new connections
         static void InitClients(VssConnection Connection)
@@ -133,7 +185,7 @@ namespace TFRestApiApp
             ProjectClient = Connection.GetClient<ProjectHttpClient>();
             GitClient = Connection.GetClient<GitHttpClient>();
             TfvsClient = Connection.GetClient<TfvcHttpClient>();
-            TestManagementClient = Connection.GetClient<TestManagementHttpClient>();
+            TestPlanClient = Connection.GetClient<TestPlanHttpClient>();             
         }
 
         static void ConnectWithDefaultCreds(string ServiceURL)
