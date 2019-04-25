@@ -1,13 +1,11 @@
 ﻿using Microsoft.TeamFoundation.Build.WebApi;
 using Microsoft.TeamFoundation.Core.WebApi;
 using Microsoft.TeamFoundation.SourceControl.WebApi;
-using Microsoft.TeamFoundation.TestManagement.WebApi;
 using Microsoft.TeamFoundation.WorkItemTracking.WebApi;
 using Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models;
 using Microsoft.VisualStudio.Services.Common;
 using Microsoft.VisualStudio.Services.WebApi;
-using Microsoft.VisualStudio.Services.WebApi.Patch;
-using Microsoft.VisualStudio.Services.WebApi.Patch.Json;
+using Microsoft.VisualStudio.Services.TestManagement.TestPlanning.WebApi;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,17 +18,17 @@ namespace TFRestApiApp
     class Program
     {
         //static readonly string TFUrl = "http://tfs-srv:8080/tfs/DefaultCollection/"; //for tfs
-        static readonly string TFUrl = "https://dev.azure.com/<your_org>/"; // for devops azure 
+        static readonly string TFUrl = "https://dev.azure.com/<org>/"; // for devops azure 
         static readonly string UserAccount = "";
         static readonly string UserPassword = "";
-        static readonly string UserPAT = "<your_pat>"; //https://docs.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops
+        static readonly string UserPAT = "<pat>"; //https://docs.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops
 
         static WorkItemTrackingHttpClient WitClient;
         static BuildHttpClient BuildClient;
         static ProjectHttpClient ProjectClient;
         static GitHttpClient GitClient;
         static TfvcHttpClient TfvsClient;
-        static TestManagementHttpClient TestManagementClient;
+        static TestPlanHttpClient TestPlanClient;
 
          static void Main(string[] args)
         {
@@ -38,8 +36,8 @@ namespace TFRestApiApp
             {
                 ConnectWithPAT(TFUrl, UserPAT);
 
-                string teamProjectName = "Team Project name";
-                string testPlanName = "New Test Plan";
+                string teamProjectName = "<Team Project Name>";
+                string testPlanName = "New Test Plan Sample";
                 string testPlanArea = "";
                 string testPlanIteration = "";
                 DateTime testPlanStartDate = DateTime.Now;
@@ -48,14 +46,16 @@ namespace TFRestApiApp
                 string dynamicSuiteName = "Dynamic Suite";
                 string folderForRequirements = "Requirements";
                 string dynamicQuery = "SELECT [System.Id] FROM WorkItems WHERE[System.WorkItemType] IN GROUP 'Microsoft.TestCaseCategory'"; // query to select all test cases
-                int[] reqIds = { -1, -1, -1 }; //update to existing requirements (user stories, product backlog items) ids
+                int[] reqIds = { 0, 0 }; //update to existing requirements (user stories, product backlog items) ids
 
                 int testPlanId = CreateTestPlan(teamProjectName, testPlanName, testPlanStartDate, testPlanFinishDate, testPlanArea, testPlanIteration);        
 
                 CreateTestSuite(teamProjectName, testPlanId, staticSuiteName);
-                CreateTestSuite(teamProjectName, testPlanId, dynamicSuiteName, "DynamicTestSuite", staticSuiteName, dynamicQuery);
+                CreateTestSuite(teamProjectName, testPlanId, dynamicSuiteName, TestSuiteType.DynamicTestSuite, staticSuiteName, SuiteQuery: dynamicQuery);
                 CreateTestSuite(teamProjectName, testPlanId, folderForRequirements, ParentPath: staticSuiteName);
-                CreateTestSuite(teamProjectName, testPlanId, TestSuiteType: "RequirementTestSuite", ParentPath: staticSuiteName + "\\" + folderForRequirements, RequirementIds: reqIds);
+
+                foreach (int rId in reqIds)
+                    CreateTestSuite(teamProjectName, testPlanId, SuiteType: TestSuiteType.RequirementTestSuite, ParentPath: staticSuiteName + "\\" + folderForRequirements, RequirementId: rId);
             }
             catch (Exception ex)
             {
@@ -77,30 +77,19 @@ namespace TFRestApiApp
         /// <returns></returns>
         static int CreateTestPlan(string TeamProjectName, string TestPlanName, DateTime? StartDate = null, DateTime? FinishDate = null, string AreaPath = "", string IterationPath = "")
         {
-            Microsoft.TeamFoundation.TestManagement.WebApi.ShallowReference areaRef = null;
-
-            if (AreaPath != "")
-            {
-                var area = WitClient.GetClassificationNodeAsync(TeamProjectName, TreeStructureGroup.Areas, AreaPath).Result;
-                areaRef = new Microsoft.TeamFoundation.TestManagement.WebApi.ShallowReference() {
-                    Id = area.Identifier.ToString(),
-                    Name = TeamProjectName + "\\" + AreaPath,
-                    Url = area.Url
-                };
-            }
-
             if (IterationPath != "") IterationPath = TeamProjectName + "\\" + IterationPath;
+            if (AreaPath != "") AreaPath = TeamProjectName + "\\" + AreaPath;
 
-            PlanUpdateModel newPlanDef = new PlanUpdateModel(
-                name: TestPlanName,
-                startDate: (StartDate.HasValue) ? StartDate.Value.ToString("o") : "",
-                endDate: (FinishDate.HasValue) ? FinishDate.Value.ToString("o") : "",
-                area: areaRef,
-                iteration: IterationPath
-                );           
+            TestPlanCreateParams newPlanDef = new TestPlanCreateParams()
+            {
+                Name = TestPlanName,
+                StartDate = StartDate,
+                EndDate = FinishDate,
+                AreaPath = AreaPath,
+                Iteration = IterationPath
+            };
 
-
-            return TestManagementClient.CreateTestPlanAsync(newPlanDef, TeamProjectName).Result.Id;
+            return TestPlanClient.CreateTestPlanAsync(newPlanDef, TeamProjectName).Result.Id;
         }
         
         /// <summary>
@@ -109,34 +98,41 @@ namespace TFRestApiApp
         /// <param name="TeamProjectName"></param>
         /// <param name="TestPlanId"></param>
         /// <param name="TestSuiteName"></param>
-        /// <param name="TestSuiteType"></param>
+        /// <param name="SuiteType"></param>
         /// <param name="ParentPath"></param>
         /// <param name="SuiteQuery"></param>
         /// <param name="RequirementIds"></param>
         /// <returns></returns>
-        static bool CreateTestSuite(string TeamProjectName, int TestPlanId, string TestSuiteName = "", string TestSuiteType = "StaticTestSuite", string ParentPath = "", string SuiteQuery = "", int[] RequirementIds = null)
+        static bool CreateTestSuite(string TeamProjectName, int TestPlanId, string TestSuiteName = "", TestSuiteType SuiteType = TestSuiteType.StaticTestSuite, string ParentPath = "", string SuiteQuery = "", int RequirementId = 0)
         {
-            switch(TestSuiteType)
+            switch(SuiteType)
             {
-                case "StaticTestSuite": if (TestSuiteName == "") { Console.WriteLine("Set the name for the a test suite"); return false; }
+                case TestSuiteType.StaticTestSuite: if (TestSuiteName == "") { Console.WriteLine("Set the name for the test suite"); return false; }
                     break;
-                case "DynamicTestSuite": if (TestSuiteName == "") { Console.WriteLine("Set the name for the a test suite"); return false; }
+                case TestSuiteType.DynamicTestSuite: if (TestSuiteName == "") { Console.WriteLine("Set the name for the test suite"); return false; }
                     if (SuiteQuery == "") { Console.WriteLine("Set the query for the new a suite"); return false; }
                     break;
-                case "RequirementTestSuite":
-                    if (RequirementIds == null) { Console.WriteLine("Set the requrements set for the a test suite"); return false; }
+                case TestSuiteType.RequirementTestSuite:
+                    if (RequirementId == 0) { Console.WriteLine("Set the requrement id for the test suite"); return false; }
                     break;
             }
 
-            SuiteCreateModel newSuite = new SuiteCreateModel(TestSuiteType, TestSuiteName, SuiteQuery, RequirementIds);
+            TestSuiteCreateParams newSuite = new TestSuiteCreateParams()
+            {
+                Name = TestSuiteName,
+                SuiteType = SuiteType,
+                QueryString = SuiteQuery,
+                RequirementId = RequirementId
+            };
+            
 
             int parentsuiteId = GetParentSuiteId(TeamProjectName, TestPlanId, ParentPath);
 
             if (parentsuiteId > 0)
             {
-                List<TestSuite> testSuiteList = TestManagementClient.CreateTestSuiteAsync(newSuite, TeamProjectName, TestPlanId, parentsuiteId).Result;
-                foreach (TestSuite ts in testSuiteList)
-                    Console.WriteLine("The Test Suite has been created: " + ts.Id + " - " + ts.Name);
+                newSuite.ParentSuite = new TestSuiteReference() { Id = parentsuiteId };
+                TestSuite testSuite = TestPlanClient.CreateTestSuiteAsync(newSuite, TeamProjectName, TestPlanId).Result;
+                Console.WriteLine("The Test Suite has been created: " + testSuite.Id + " - " + testSuite.Name);
 
             }
             else { Console.WriteLine("Can not find the parent test suite"); return false; }
@@ -153,26 +149,22 @@ namespace TFRestApiApp
         /// <returns></returns>
         static int GetParentSuiteId(string TeamProjectName, int TestPlanId, string SuitePath)
         {
-            TestPlan testPlan = TestManagementClient.GetPlanByIdAsync(TeamProjectName, TestPlanId).Result;                       
+            TestPlan testPlan = TestPlanClient.GetTestPlanByIdAsync(TeamProjectName, TestPlanId).Result;
+            if (SuitePath == "") return testPlan.RootSuite.Id;
 
-            int parentSuiteId = 0;
+            List<TestSuite> testPlanSuites = TestPlanClient.GetTestSuitesForPlanAsync(TeamProjectName, TestPlanId, SuiteExpand.Children, asTreeView: true).Result;                       
+                        
+            string[] pathArray = SuitePath.Split(new char[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
 
-            if (int.TryParse(testPlan.RootSuite.Id, out parentSuiteId))
+            TestSuite suiteMarker = testPlanSuites[0]; //first level is the root suite
+
+            for (int i = 0; i < pathArray.Length; i++)
             {
-                if (SuitePath == "") return parentSuiteId;
+                suiteMarker = (from ts in suiteMarker.Children where ts.Name == pathArray[i] select ts).FirstOrDefault();
 
-                string[] pathArray = SuitePath.Split(new char[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-
-                for (int i = 0; i < pathArray.Length; i++)
-                {
-                    TestSuite testSuite = TestManagementClient.GetTestSuiteByIdAsync(TeamProjectName, TestPlanId, parentSuiteId, 1).Result;
-
-                    string parentSuiteIdStr = (from ts in testSuite.Suites where ts.Name == pathArray[i] select ts.Id).FirstOrDefault();
-
-                    if (!int.TryParse(parentSuiteIdStr, out parentSuiteId)) break;
-
-                    if (i == pathArray.Length - 1) return parentSuiteId;
-                }                
+                if (suiteMarker == null) return 0;
+                
+                if (i == pathArray.Length - 1) return suiteMarker.Id;
             }
 
             return 0;
@@ -186,7 +178,7 @@ namespace TFRestApiApp
             ProjectClient = Connection.GetClient<ProjectHttpClient>();
             GitClient = Connection.GetClient<GitHttpClient>();
             TfvsClient = Connection.GetClient<TfvcHttpClient>();
-            TestManagementClient = Connection.GetClient<TestManagementHttpClient>();
+            TestPlanClient = Connection.GetClient<TestPlanHttpClient>();
         }
 
         static void ConnectWithDefaultCreds(string ServiceURL)
