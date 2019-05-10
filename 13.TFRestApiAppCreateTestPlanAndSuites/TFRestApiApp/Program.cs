@@ -117,20 +117,19 @@ namespace TFRestApiApp
                     break;
             }
 
-            TestSuiteCreateParams newSuite = new TestSuiteCreateParams()
-            {
-                Name = TestSuiteName,
-                SuiteType = SuiteType,
-                QueryString = SuiteQuery,
-                RequirementId = RequirementId
-            };
-            
-
-            int parentsuiteId = GetParentSuiteId(TeamProjectName, TestPlanId, ParentPath);
+            int parentsuiteId = GetParentSuiteId(TeamProjectName, TestPlanId, ParentPath);            
 
             if (parentsuiteId > 0)
             {
-                newSuite.ParentSuite = new TestSuiteReference() { Id = parentsuiteId };
+                TestSuiteCreateParams newSuite = new TestSuiteCreateParams()
+                {
+                    Name = TestSuiteName,
+                    SuiteType = SuiteType,
+                    QueryString = SuiteQuery,
+                    RequirementId = RequirementId,
+                    ParentSuite = new TestSuiteReference() { Id = parentsuiteId }
+                };
+
                 TestSuite testSuite = TestPlanClient.CreateTestSuiteAsync(newSuite, TeamProjectName, TestPlanId).Result;
                 Console.WriteLine("The Test Suite has been created: " + testSuite.Id + " - " + testSuite.Name);
 
