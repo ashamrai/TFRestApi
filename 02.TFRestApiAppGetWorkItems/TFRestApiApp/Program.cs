@@ -17,10 +17,10 @@ namespace TFRestApiApp
 {
     class Program
     {
-        static readonly string TFUrl = "http://tfs-srv:8080/tfs/DefaultCollection/";
+        static readonly string TFUrl = "https://dev.azure.com/<your_org>/";
         static readonly string UserAccount = "";
         static readonly string UserPassword = "";
-        static readonly string UserPAT = "";
+        static readonly string UserPAT = "<your_pat>"; //https://docs.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops
 
         static WorkItemTrackingHttpClient WitClient;
         static BuildHttpClient BuildClient;
@@ -33,10 +33,28 @@ namespace TFRestApiApp
         {
             try
             {
-                int wiId = 738; //set the work item ID
-                ConnectWithDefaultCreds(TFUrl);
-                var wi = GetWorkItem(wiId);
+                int wiId = -1; //set the work item ID
+                ConnectWithPAT(TFUrl, UserPAT);
+                var wi = GetWorkItemWithRelations(wiId);
                 var fieldValue = CheckFieldAndGetFieldValue(wi, "System.Title"); // or just: var fieldValue = GetFieldValue(wi, "System.Title");
+
+                Console.WriteLine("__________________________________________");
+                Console.WriteLine("                   FIELDS");
+                Console.WriteLine("__________________________________________");
+
+                foreach (var fieldName in wi.Fields.Keys)
+                    Console.WriteLine("{0,-40}: {1}", fieldName, wi.Fields[fieldName].ToString());
+
+                if (wi.Relations != null)
+                {
+                    Console.WriteLine("__________________________________________");
+                    Console.WriteLine("                   LINKS");
+                    Console.WriteLine("__________________________________________");
+
+                    foreach (var wiLink in wi.Relations)
+                        Console.WriteLine("{0,-40}: {1}", wiLink.Rel, ExtractWiIdFromUrl(wiLink.Url));
+                }
+
             }
             catch (Exception ex)
             {
@@ -116,6 +134,28 @@ namespace TFRestApiApp
             if (!WI.Fields.Keys.Contains("System.TeamProject")) throw new ArgumentException("There is no TeamProject field in the workitem", "GetWorkItemType");
 
             return WitClient.GetWorkItemTypeAsync((string)WI.Fields["System.TeamProject"], (string)WI.Fields["System.WorkItemType"]).Result;
+        }
+
+        /// <summary>
+        /// Extract an id from an url
+        /// </summary>
+        /// <param name="Url"></param>
+        /// <returns></returns>
+        static int ExtractWiIdFromUrl(string Url)
+        {
+            int id = -1;
+
+            string splitStr = "_apis/wit/workItems/";
+
+            if (Url.Contains(splitStr))
+            {
+                string [] strarr = Url.Split(new string[] { splitStr }, StringSplitOptions.RemoveEmptyEntries);
+
+                if (strarr.Length == 2 && int.TryParse(strarr[1], out id))
+                    return id;
+            }
+
+            return id;
         }
 
         /// <summary>
