@@ -64,24 +64,35 @@ namespace TFRestApiApp
                 Console.WriteLine(" ID:{0, -9}|NAME:{1, -35}|PATH:{2}", buildDef.Id, buildDef.Name, buildDef.Path);
                 Console.WriteLine(" REV:{0, -8}|QUEUE:{1, -34}|QUEUE STATUS:{2}", buildDef.Revision, (buildDef.Queue != null) ? buildDef.Queue.Name : "", buildDef.QueueStatus);
 
-                List<Build> builds = BuildClient.GetBuildsAsync(TeamProjectName, new List<int> { buildDef.Id }).Result;
-
-                if (builds.Count > 0)
-                {
-                    Console.WriteLine("+====================BUILDS=============================================================");
-                    Console.WriteLine("+    ID      |        NUMBER        |      STATUS     |     START DATE     | FINISH DATE");
-                    Console.WriteLine("+---------------------------------------------------------------------------------------");
-
-                    for (int i = 0; i < builds.Count && i < 10; i++)
-                    {
-                        Console.WriteLine(" {0, -12}|{1, -22}|{2, -17}|{3, -20}|{4}", builds[i].Id, builds[i].BuildNumber, builds[i].Status, 
-                            (builds[i].StartTime.HasValue)? builds[i].StartTime.Value.ToString() : "",
-                            (builds[i].FinishTime.HasValue) ? builds[i].FinishTime.Value.ToString() : "");
-                    }
-                }
-                else
-                    Console.WriteLine("+=======================================================================================");
+                ListBuilds(TeamProjectName, buildDef);
             }
+        }
+
+        /// <summary>
+        /// Show builds details
+        /// </summary>
+        /// <param name="TeamProjectName"></param>
+        /// <param name="buildDef"></param>
+        private static void ListBuilds(string TeamProjectName, BuildDefinitionReference buildDef)
+        {
+            List<Build> builds = BuildClient.GetBuildsAsync(TeamProjectName, new List<int> { buildDef.Id }).Result;
+
+            if (builds.Count > 0)
+            {
+                Console.WriteLine("+====================BUILDS================================================================================");
+                Console.WriteLine("+    ID      |        NUMBER        |      STATUS     |     START DATE     |    FINISH DATE     | COMMITS");
+                Console.WriteLine("+----------------------------------------------------------------------------------------------------------");
+
+                for (int i = 0; i < builds.Count && i < 10; i++)
+                {
+                    var changes = BuildClient.GetBuildChangesAsync(TeamProjectName, builds[i].Id).Result;
+                    Console.WriteLine(" {0, -12}|{1, -22}|{2, -17}|{3, -20}|{4, -20}|{5}", builds[i].Id, builds[i].BuildNumber, builds[i].Status,
+                        (builds[i].StartTime.HasValue) ? builds[i].StartTime.Value.ToString() : "",
+                        (builds[i].FinishTime.HasValue) ? builds[i].FinishTime.Value.ToString() : "", changes.Count);
+                }
+            }
+            else
+                Console.WriteLine("+=======================================================================================");
         }
 
         #region create new connections
