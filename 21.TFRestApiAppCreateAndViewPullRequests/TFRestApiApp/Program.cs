@@ -41,13 +41,16 @@ namespace TFRestApiApp
             try
             {
                 string TeamProjectName = "<Team Project Name>";
-                string GitRepo = "<Git Repo Name>";
-                string SourceRef = "refs/heads/<source_branch_path>", TargetRef = "refs/heads/<target_branch_path>";
+                string GitRepo = "<GIT Repo Name>";
+                string SourceRef = "refs/heads/<source branch>", TargetRef = "refs/heads/<target branch>";
                 int[] wiIds = { };
 
                 ConnectWithPAT(TFUrl, UserPAT);
 
-                ViewActivePullRequests(TeamProjectName, GitRepo);
+                Console.WriteLine("\n\nACTIVE PRs\n\n");
+                ViewPullRequests(TeamProjectName, GitRepo);
+                Console.WriteLine("\n\nCOMPLETED PRs\n\n");
+                ViewPullRequests(TeamProjectName, GitRepo, true, TargetRef);
                 int prId = CreatePullRequest(TeamProjectName, GitRepo, SourceRef, TargetRef, wiIds);
                 CreateReviewTask(TeamProjectName, GitRepo, prId);
             }
@@ -64,9 +67,17 @@ namespace TFRestApiApp
         /// </summary>
         /// <param name="TeamProjectName"></param>
         /// <param name="GitRepo"></param>
-        private static void ViewActivePullRequests(string TeamProjectName, string GitRepo)
+        private static void ViewPullRequests(string TeamProjectName, string GitRepo, bool CompletedPRs = false, string TargetRef = "")
         {
-            var pullRequests = GitClient.GetPullRequestsAsync(TeamProjectName, GitRepo, null ).Result;
+            if (CompletedPRs && TargetRef == "")
+            {
+                Console.WriteLine("Define a target branch reference");
+                return;
+            }
+
+            var pullRequests = (CompletedPRs)? 
+                GitClient.GetPullRequestsAsync(TeamProjectName, GitRepo, new GitPullRequestSearchCriteria { Status = PullRequestStatus.Completed, TargetRefName = TargetRef }, top: 10).Result : 
+                GitClient.GetPullRequestsAsync(TeamProjectName, GitRepo, null ).Result;
 
             foreach (var pullRequest in pullRequests)
             {
@@ -95,29 +106,38 @@ namespace TFRestApiApp
                     }
                 }
 
+                var workItemRefs = GitClient.GetPullRequestWorkItemRefsAsync(TeamProjectName, GitRepo, pullRequest.PullRequestId).Result;
+
+                if (workItemRefs.Count > 0)
+                {
+                    Console.WriteLine("+------------------WORK ITEMS-------------------------------------------------------");
+
+                    foreach (var workItemRef in workItemRefs)
+                    {
+                        int wiId = 0;
+                        if (!int.TryParse(workItemRef.Id, out wiId)) continue;
+
+                        var workItem = WitClient.GetWorkItemAsync(wiId).Result;
+
+                        Console.WriteLine("{0,10} {1}", workItem.Id, workItem.Fields["System.Title"]);
+                    }
+                }
+
                 var commits = GitClient.GetPullRequestCommitsAsync(TeamProjectName, GitRepo, pullRequest.PullRequestId).Result;
 
                 Console.WriteLine("+------------------COMMITS----------------------------------------------------------");
 
-                foreach (var commit in commits) Console.WriteLine("{0} {1}", commit.CommitId.Substring(0, 8), commit.Comment);
-
-                var workItemRefs = GitClient.GetPullRequestWorkItemRefsAsync(TeamProjectName, GitRepo, pullRequest.PullRequestId).Result;
-
-                if (workItemRefs.Count == 0) continue;
-
-                Console.WriteLine("+------------------WORK ITEMS-------------------------------------------------------");
-
-                foreach(var workItemRef in workItemRefs)
+                foreach (var commit in commits)
                 {
-                    int wiId = 0;
-                    if (!int.TryParse(workItemRef.Id, out wiId)) continue;
+                    Console.WriteLine("{0} {1}", commit.CommitId.Substring(0, 8), commit.Comment);
+                    GitCommitChanges changes = GitClient.GetChangesAsync(TeamProjectName, commit.CommitId, GitRepo).Result;
 
-                    var workItem = WitClient.GetWorkItemAsync(wiId).Result;
-
-                    Console.WriteLine("{0,10} {1}", workItem.Id, workItem.Fields["System.Title"]);
+                    foreach (var change in changes.Changes)
+                        Console.WriteLine("{0}: {1}", change.ChangeType, change.Item.Path);
                 }
             }
         }
+
 
         /// <summary>
         ///  Create new Pull Request
