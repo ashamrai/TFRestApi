@@ -44,8 +44,8 @@ namespace TFRestApiApp
 
                 ConnectWithPAT(TFUrl, UserPAT);
 
-                CreatGitRepo(TeamProjectName, GitNewRepoName);
-                CreatGitRepo(TeamProjectName, GitNewForkRepoName, GitNewRepoName);
+                CreateGitRepo(TeamProjectName, GitNewRepoName);
+                CreateGitRepo(TeamProjectName, GitNewForkRepoName, GitNewRepoName);
 
                 PrintAllRepos(TeamProjectName);
 
@@ -136,7 +136,7 @@ namespace TFRestApiApp
         /// <param name="TeamProjectName"></param>
         /// <param name="GitNewRepoName"></param>
         /// <param name="ParentRepo"></param>
-        private static void CreatGitRepo(string TeamProjectName, string GitNewRepoName, string ParentRepo = null)
+        private static void CreateGitRepo(string TeamProjectName, string GitNewRepoName, string ParentRepo = null)
         {
             GitRepository newRepo;
 
