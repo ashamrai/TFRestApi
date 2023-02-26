@@ -17,10 +17,10 @@ namespace TFRestApiApp
 {
     class Program
     {
-        static readonly string TFUrl = "http://tfs-srv:8080/tfs/DefaultCollection/";
+        static readonly string TFUrl = "<your_azure_devops_org_url>";
         static readonly string UserAccount = "";
         static readonly string UserPassword = "";
-        static readonly string UserPAT = "";
+        static readonly string UserPAT = "<your_pat>";
 
         static WorkItemTrackingHttpClient WitClient;
         static BuildHttpClient BuildClient;
@@ -31,9 +31,10 @@ namespace TFRestApiApp
 
         static void Main(string[] args)
         {
-            ConnectWithDefaultCreds(TFUrl);
+            ConnectWithPAT(TFUrl, UserPAT);
         }
 
+        #region create new connections
         static void InitClients(VssConnection Connection)
         {
             WitClient = Connection.GetClient<WorkItemTrackingHttpClient>();
@@ -61,5 +62,6 @@ namespace TFRestApiApp
             VssConnection connection = new VssConnection(new Uri(ServiceURL), new VssBasicCredential(string.Empty, PAT));
             InitClients(connection);
         }
+        #endregion
     }
 }
