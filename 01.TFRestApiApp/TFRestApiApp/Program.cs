@@ -17,10 +17,10 @@ namespace TFRestApiApp
 {
     class Program
     {
-        static readonly string TFUrl = "<your_azure_devops_org_url>";
+        static readonly string TFUrl = "https://dev.azure.com/<your_or>";
         static readonly string UserAccount = "";
         static readonly string UserPassword = "";
-        static readonly string UserPAT = "<your_pat>";
+        static readonly string UserPAT = "<your_pat>"; //https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&tabs=Windows
 
         static WorkItemTrackingHttpClient WitClient;
         static BuildHttpClient BuildClient;
