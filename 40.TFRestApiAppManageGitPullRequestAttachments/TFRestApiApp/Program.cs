@@ -87,9 +87,9 @@ namespace TFRestApiApp
             {
                 Console.WriteLine($@"{attachment.Id} - {attachment.DisplayName} - {attachment.Url}");
 
-                var zipStream = GitClient.GetAttachmentContentAsync(teamProject, attachment.DisplayName, repoName, prId).Result;
+                var fileStream = GitClient.GetAttachmentContentAsync(teamProject, attachment.DisplayName, repoName, prId).Result;
 
-                zipStream.CopyToAsync(new FileStream(attachment.DisplayName, FileMode.OpenOrCreate));
+                fileStream.CopyToAsync(new FileStream(attachment.DisplayName, FileMode.OpenOrCreate));
             }
         }
 
