@@ -34,9 +34,13 @@ namespace TFRestApiApp
         static void Main(string[] args)
         {
             string newTeamProjectName = "My New Project";
+            string updatedTeamProjectName = "My Renamed Project";
+
             ConnectWithPAT(TFUrl, UserPAT);
 
             CreateTeamProject(newTeamProjectName);
+
+            RenameProject(newTeamProjectName, updatedTeamProjectName);
 
             Console.ReadKey();
 
@@ -44,7 +48,7 @@ namespace TFRestApiApp
 
             Console.ReadKey();
 
-            DeleteTeamProject(newTeamProjectName);
+            DeleteTeamProject(updatedTeamProjectName);
 
             Console.ReadKey();
 
@@ -52,7 +56,7 @@ namespace TFRestApiApp
 
             Console.ReadKey();
 
-            RestoreTeamProject(newTeamProjectName);
+            RestoreTeamProject(updatedTeamProjectName);
 
         }
 
@@ -106,6 +110,26 @@ namespace TFRestApiApp
                 };
 
             ProjectClient.QueueCreateProject(project).Wait();
+        }
+
+        /// <summary>
+        /// Rename team project
+        /// </summary>
+        /// <param name="projectName"></param>
+        /// <param name="newProjectName"></param>
+        static void RenameProject(string projectName, string newProjectName)
+        {
+            var project = (from p in ProjectClient.GetProjects().Result
+                             where p.Name == projectName
+                             select p).FirstOrDefault();
+            if (project != null)
+            {
+                TeamProject updateProject = new TeamProject();
+                updateProject.Name = newProjectName;
+                updateProject.Description = newProjectName;
+
+                var updatedProject = ProjectClient.UpdateProject(project.Id, updateProject).Result;
+            }
         }
 
         /// <summary>
